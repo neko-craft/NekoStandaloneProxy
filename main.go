@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"regexp"
-	"strings"
 )
 
 type Server struct {
@@ -54,12 +53,8 @@ func main() {
 		if err != nil {
 			log.Panicln(err)
 		}
-		reg, err := regexp.Compile(server.Regexp)
-		if err != nil {
-			log.Panicln(err)
-		}
 		server.addr = addr
-		server.regexp = reg
+		server.regexp = regexp.MustCompile(server.Regexp)
 		server.name = key
 	}
 	defaultServer, ok := config.Servers["default"]
@@ -117,14 +112,12 @@ func main() {
 				if err != nil || data[0] != 1 || data[1] != 0 {
 					return
 				}
-				break
 			case 2:
-				break
 			default:
 				return
 			}
 
-			port := uint16(received[allLen-3])<<4 | uint16(received[allLen-2])
+			port := uint16(received[allLen-3])<<8 | uint16(received[allLen-2])
 			if port > 65535 || port == 0 {
 				return
 			}
@@ -171,19 +164,19 @@ func main() {
 				if err != nil {
 					return
 				}
-				length := arr[0]
-				arr0, arr1 := length, byte(0)
+				arr0, arr1 := arr[0], byte(0)
+				length := int(arr0)
 				if length > 127 {
 					_, err = remote.Read(arr)
 					if err != nil {
 						return
 					}
 					arr1 = arr[0]
-					length |= arr1 << 7
+					length = 0 | (length & 0b01111111) | (int(arr1) << 7)
 				}
 				data := make([]byte, length)
-				_, err = remote.Read(data)
-				if err != nil {
+				size, err := io.ReadFull(remote, data)
+				if err != nil || size != length {
 					return
 				}
 				if arr1 == 0 {
@@ -201,10 +194,13 @@ func main() {
 					return
 				}
 				_, _ = conn.Write(PONG)
-				return
 			case 2:
+				host, _, err := net.SplitHostPort(src)
+				if err != nil {
+					return
+				}
 				address += "\x00"
-				address += strings.Split(src, ":")[0]
+				address += host
 				address += "\x0000000000-0000-0000-0000-000000000000"
 
 				addressBytes := []byte(address)
