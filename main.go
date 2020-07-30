@@ -110,7 +110,17 @@ func main() {
 			}
 
 			state := received[allLen-1]
-			if state != 1 && state != 2 {
+			switch state {
+			case 1:
+				data := make([]byte, 2)
+				_, err = conn.Read(data)
+				if err != nil || data[0] != 1 || data[1] != 0 {
+					return
+				}
+				break
+			case 2:
+				break
+			default:
 				return
 			}
 
@@ -152,8 +162,6 @@ func main() {
 					return
 				}
 				// noinspection GoUnhandledErrorResult
-				go io.Copy(conn, remote)
-				_, _ = io.Copy(remote, conn)
 				_, err = remote.Write(REQUEST)
 				if err != nil {
 					return
@@ -187,6 +195,11 @@ func main() {
 					return
 				}
 				_, _ = conn.Write(data)
+				data = make([]byte, 10)
+				_, err = conn.Read(data)
+				if err != nil || data[0] != 9 || data[1] != 1 {
+					return
+				}
 				_, _ = conn.Write(PONG)
 				return
 			case 2:
